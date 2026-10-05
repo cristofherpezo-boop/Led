@@ -1,0 +1,701 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0f1115">
+<title>Control Tira LED</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --card: #ffffff; --tx: #14161a; --mut: #5b6472; --bd: #d9dde3;
+    --ac: #4f46e5; --ac-tx: #ffffff; --ok: #15803d; --err: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115; --card: #181b21; --tx: #eef0f4; --mut: #9aa3b2; --bd: #2a2f38;
+      --ac: #8b92ff; --ac-tx: #0f1115; --ok: #4ade80; --err: #f87171;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--tx);
+    font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 480px; margin: 0 auto; padding: 16px 16px 40px; }
+  h1 { font-size: 1.4rem; margin: 4px 0 12px; }
+  h2 { font-size: 1rem; margin: 0 0 10px; }
+  .card {
+    background: var(--card); border: 1px solid var(--bd); border-radius: 14px;
+    padding: 14px; margin-bottom: 12px;
+  }
+  fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+  fieldset:disabled { opacity: .45; }
+  button, select {
+    font: inherit; color: var(--tx); background: var(--card);
+    border: 1px solid var(--bd); border-radius: 10px; min-height: 48px; padding: 0 14px;
+  }
+  button { cursor: pointer; }
+  button.primario { background: var(--ac); color: var(--ac-tx); border-color: var(--ac); font-weight: 600; }
+  .fila-botones { display: flex; gap: 8px; }
+  .fila-botones > * { flex: 1; }
+  .fila { display: grid; grid-template-columns: 7.5rem 1fr 3rem; align-items: center; gap: 8px; min-height: 44px; }
+  .fila span { color: var(--mut); font-size: .92rem; }
+  .fila output { text-align: right; font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; accent-color: var(--ac); height: 28px; }
+  .campo { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 48px; }
+  .campo span { color: var(--mut); font-size: .92rem; }
+  .vista { height: 56px; border-radius: 10px; border: 1px solid var(--bd); margin-bottom: 12px; background: #fff; }
+  .presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 10px 0; }
+  .presets button { border: 0; font-weight: 600; text-shadow: 0 0 2px rgba(0,0,0,.35); color: #fff; }
+  #estado { margin: 8px 0 0; font-size: .92rem; color: var(--mut); min-height: 1.4em; }
+  #estado.ok { color: var(--ok); } #estado.err { color: var(--err); }
+  #infoEstado { font-size: .85rem; color: var(--mut); margin: 4px 0 0; }
+  .nota { font-size: .85rem; color: var(--mut); margin: 6px 0 0; }
+  video { display: block; width: 100%; max-height: 180px; object-fit: cover; border-radius: 10px; margin-top: 8px; background: #000; }
+  video.oculto { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; margin: 0; }
+  .check { display: flex; align-items: center; gap: 10px; min-height: 48px; }
+  .check input { width: 22px; height: 22px; accent-color: var(--ac); }
+  a { color: var(--ac); }
+  .enlace { background: none; border: 0; color: var(--ac); text-decoration: underline; min-height: 40px; padding: 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Control Tira LED</h1>
+
+  <section class="card">
+    <button id="btnConectar" class="primario" style="width:100%">Conectar a la tira</button>
+    <p id="estado" role="status" aria-live="polite"></p>
+    <p id="infoEstado"></p>
+    <button id="btnTodos" class="enlace" type="button">No aparece mi tira: mostrar todos los dispositivos</button>
+  </section>
+
+  <fieldset id="controles" disabled>
+
+    <section class="card">
+      <h2>Encendido</h2>
+      <div class="fila-botones">
+        <button id="btnOn">Encender</button>
+        <button id="btnOff">Apagar</button>
+      </div>
+    </section>
+
+    <fieldset id="manual">
+      <section class="card">
+        <h2>Color</h2>
+        <div id="vista" class="vista"></div>
+        <label class="fila"><span>Rojo</span><input type="range" id="r" min="0" max="255" value="255"><output></output></label>
+        <label class="fila"><span>Verde</span><input type="range" id="g" min="0" max="255" value="255"><output></output></label>
+        <label class="fila"><span>Azul</span><input type="range" id="b" min="0" max="255" value="255"><output></output></label>
+        <div id="presets" class="presets"></div>
+        <label class="campo"><span>Elegir color</span><input type="color" id="selector" value="#ffffff" style="width:64px;height:44px;border:0;background:none"></label>
+      </section>
+
+      <section class="card">
+        <h2>Efectos de la tira</h2>
+        <label class="campo"><span>Efecto</span><select id="efecto"></select></label>
+        <label class="fila"><span>Velocidad</span><input type="range" id="velocidad" min="1" max="31" value="16"><output></output></label>
+        <p class="nota">Los efectos corren dentro de la tira. Si la velocidad se siente al revés, usa el otro extremo del control.</p>
+      </section>
+    </fieldset>
+
+    <section class="card">
+      <h2>Automático</h2>
+      <label class="campo"><span>Color desde</span>
+        <select id="fuente">
+          <option value="ninguna">Ninguno</option>
+          <option value="camara">Cámara</option>
+        </select>
+      </label>
+      <label class="campo"><span>Cómo elegir el color</span>
+        <select id="algoritmo">
+          <option value="predominante">Predominante</option>
+          <option value="promedio">Promedio</option>
+          <option value="bordes">Bordes</option>
+        </select>
+      </label>
+      <video id="video" class="oculto" playsinline muted></video>
+      <label class="check"><input type="checkbox" id="chkAudio"> Reaccionar al sonido (micrófono)</label>
+      <label class="fila"><span>Sensibilidad</span><input type="range" id="sens" min="5" max="30" value="10" data-div="10"><output></output></label>
+      <p class="nota">Apunta la cámara a lo que quieras copiar. Con el sonido activo, el brillo sigue el ritmo; si la cámara también está activa, el color viene de la cámara.</p>
+    </section>
+
+    <section class="card">
+      <h2>Ajustes</h2>
+      <label class="fila"><span>Brillo</span><input type="range" id="brillo" min="0" max="100" value="100"><output></output></label>
+      <label class="fila"><span>Intensidad</span><input type="range" id="intens" min="10" max="30" value="16" data-div="10"><output></output></label>
+      <label class="fila"><span>Balance rojo</span><input type="range" id="gr" min="10" max="100" value="100"><output></output></label>
+      <label class="fila"><span>Balance verde</span><input type="range" id="gg" min="10" max="100" value="100"><output></output></label>
+      <label class="fila"><span>Balance azul</span><input type="range" id="gb" min="10" max="100" value="100"><output></output></label>
+      <label class="campo"><span>Orden de colores</span>
+        <select id="orden">
+          <option>RGB</option><option>RBG</option><option>GRB</option>
+          <option>GBR</option><option>BRG</option><option>BGR</option>
+        </select>
+      </label>
+      <button id="btnBlanco" style="width:100%;margin-top:6px">Probar blanco</button>
+      <p class="nota">Para calibrar: pulsa "Probar blanco" y baja el canal que se vea de más hasta que el blanco se vea blanco. Los ajustes se guardan en este teléfono.</p>
+    </section>
+
+  </fieldset>
+
+  <p class="nota">Funciona en Chrome o Edge (Android y PC). Requiere Bluetooth activado y una tira con controlador Triones. La página debe seguir abierta y en primer plano mientras controlas la tira.</p>
+</main>
+
+<script>
+(() => {
+  'use strict';
+
+  const $ = id => document.getElementById(id);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+  // ---------- Protocolo Triones ----------
+  const SERV_ESCRITURA = 0xffd5, CAR_ESCRITURA = 0xffd9;
+  const SERV_NOTIF = 0xffd0, CAR_NOTIF = 0xffd4;
+  const ENCENDER = [0xCC, 0x23, 0x33];
+  const APAGAR = [0xCC, 0x24, 0x33];
+  const CONSULTA = [0xEF, 0x01, 0x77];
+
+  const COLORES = [
+    ['Rojo', [255, 0, 0]], ['Naranja', [255, 100, 0]], ['Amarillo', [255, 220, 0]],
+    ['Verde', [0, 255, 0]], ['Cian', [0, 255, 255]], ['Azul', [0, 0, 255]],
+    ['Morado', [150, 0, 255]], ['Rosa', [255, 0, 130]], ['Blanco', [255, 255, 255]],
+  ];
+
+  // ---------- Estado ----------
+  let dispositivo = null, carEscritura = null, carNotif = null;
+  let conectado = false, mostrarTodos = false;
+  const est = { encendida: false, fuente: 'ninguna', audio: false, colorFuente: null, nivel: 0, bandas: [0, 0, 0] };
+
+  // ---------- Mensajes ----------
+  function mensaje(texto, tipo = '') {
+    const e = $('estado');
+    e.textContent = texto;
+    e.className = tipo;
+  }
+
+  // ---------- Color ----------
+  const num = id => Number($(id).value);
+  function ajustes() {
+    return {
+      brillo: num('brillo'),
+      intens: num('intens') / 10,
+      sens: num('sens') / 10,
+      gan: [num('gr') / 100, num('gg') / 100, num('gb') / 100],
+      orden: $('orden').value,
+      algoritmo: $('algoritmo').value,
+    };
+  }
+  function escalar(rgb, brillo) {
+    const f = clamp(brillo, 0, 100) / 100;
+    return rgb.map(v => clamp(Math.round(v * f), 0, 255));
+  }
+  function reordenar(rgb, orden) {
+    const d = { R: rgb[0], G: rgb[1], B: rgb[2] };
+    return [...orden].map(c => d[c]);
+  }
+  function paquete(rgb, brillo, orden, gan) {
+    const corregido = rgb.map((v, i) => v * gan[i]);
+    const [r, g, b] = reordenar(escalar(corregido, brillo), orden);
+    return [0x56, r, g, b, 0x00, 0xF0, 0xAA];
+  }
+  function realzar(rgb, intensidad) {
+    const m = Math.max(...rgb);
+    if (m <= 0) return [0, 0, 0];
+    return rgb.map(c => m * Math.pow(c / m, intensidad));
+  }
+  function pintarVista(rgb) {
+    $('vista').style.background = `rgb(${rgb.map(v => Math.round(v)).join(',')})`;
+  }
+
+  // ---------- Envío a la tira (cola serializada) ----------
+  const cola = [];
+  let enviando = false;
+
+  function enviar(bytes, clave) {
+    if (!carEscritura) return;
+    if (clave) {
+      const i = cola.findIndex(x => x.clave === clave);
+      if (i >= 0) { cola[i].bytes = bytes; vaciar(); return; }
+    }
+    cola.push({ bytes, clave });
+    vaciar();
+  }
+
+  async function vaciar() {
+    if (enviando) return;
+    enviando = true;
+    try {
+      while (cola.length) {
+        const { bytes } = cola.shift();
+        const datos = new Uint8Array(bytes);
+        if (carEscritura.writeValueWithoutResponse) await carEscritura.writeValueWithoutResponse(datos);
+        else await carEscritura.writeValue(datos);
+      }
+    } catch (e) {
+      cola.length = 0;
+      mensaje('Error al enviar: ' + e.message, 'err');
+    } finally {
+      enviando = false;
+    }
+  }
+
+  function asegurarEncendida() {
+    if (!est.encendida) {
+      est.encendida = true;
+      enviar(ENCENDER, 'power');
+    }
+  }
+
+  // ---------- Conexión ----------
+  async function conectar() {
+    if (!navigator.bluetooth) {
+      mensaje('Este navegador no soporta Bluetooth web. Usa Chrome o Edge.', 'err');
+      return;
+    }
+    try {
+      if (!dispositivo) {
+        const opciones = mostrarTodos
+          ? { acceptAllDevices: true, optionalServices: [SERV_ESCRITURA, SERV_NOTIF] }
+          : { filters: [{ namePrefix: 'Triones' }], optionalServices: [SERV_ESCRITURA, SERV_NOTIF] };
+        dispositivo = await navigator.bluetooth.requestDevice(opciones);
+        dispositivo.addEventListener('gattserverdisconnected', alDesconectar);
+      }
+      mensaje('Conectando...');
+      const servidor = await dispositivo.gatt.connect();
+      const sE = await servidor.getPrimaryService(SERV_ESCRITURA);
+      carEscritura = await sE.getCharacteristic(CAR_ESCRITURA);
+      try {
+        const sN = await servidor.getPrimaryService(SERV_NOTIF);
+        carNotif = await sN.getCharacteristic(CAR_NOTIF);
+        await carNotif.startNotifications();
+        carNotif.addEventListener('characteristicvaluechanged', alNotificar);
+      } catch (_) { /* el estado es opcional */ }
+
+      conectado = true;
+      est.encendida = false;
+      $('btnConectar').textContent = 'Desconectar';
+      $('controles').disabled = false;
+      mensaje('Conectado a ' + (dispositivo.name || 'la tira'), 'ok');
+      revisarMotor();
+      enviar(CONSULTA, 'consulta');
+    } catch (e) {
+      if (e.name === 'NotFoundError') mensaje('No se eligió ningún dispositivo.');
+      else mensaje('No se pudo conectar: ' + e.message, 'err');
+    }
+  }
+
+  function desconectar() {
+    if (dispositivo && dispositivo.gatt.connected) dispositivo.gatt.disconnect();
+    else alDesconectar();
+  }
+
+  function alDesconectar() {
+    conectado = false;
+    carEscritura = null;
+    carNotif = null;
+    cola.length = 0;
+    $('fuente').value = 'ninguna';
+    $('chkAudio').checked = false;
+    detenerFuente();
+    detenerAudio();
+    revisarMotor();
+    $('controles').disabled = true;
+    $('btnConectar').textContent = 'Conectar a la tira';
+    $('infoEstado').textContent = '';
+    mensaje('Desconectado.');
+  }
+
+  function alNotificar(ev) {
+    const v = ev.target.value;
+    const d = new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
+    if (d.length >= 10 && d[0] === 0x66) {
+      est.encendida = d[2] === 0x23;
+      $('infoEstado').textContent =
+        `Tira ${est.encendida ? 'encendida' : 'apagada'} · RGB (${d[6]}, ${d[7]}, ${d[8]}) · modo 0x${d[3].toString(16)}`;
+    }
+  }
+
+  // ---------- Control manual ----------
+  function enviarManual() {
+    if (!conectado || autoActivo() || $('efecto').value !== 'fijo') return;
+    const a = ajustes();
+    const rgb = [num('r'), num('g'), num('b')];
+    asegurarEncendida();
+    enviar(paquete(rgb, a.brillo, a.orden, a.gan), 'color');
+  }
+
+  function alCambiarManual() {
+    if (autoActivo()) return;
+    pintarVista(escalar([num('r'), num('g'), num('b')], num('brillo')));
+    enviarManual();
+  }
+
+  function ponerColor(rgb) {
+    $('efecto').value = 'fijo';
+    $('r').value = rgb[0]; $('g').value = rgb[1]; $('b').value = rgb[2];
+    actualizarSalidas();
+    $('selector').value = '#' + rgb.map(v => v.toString(16).padStart(2, '0')).join('');
+    alCambiarManual();
+  }
+
+  function aplicarEfecto() {
+    const modo = $('efecto').value;
+    if (modo === 'fijo') { alCambiarManual(); return; }
+    asegurarEncendida();
+    enviar([0xBB, Number(modo), num('velocidad'), 0x44], 'efecto');
+  }
+
+  // ---------- Fuente de color: cámara o pantalla ----------
+  const video = $('video');
+  const W = 96, H = 54;
+  const lienzo = document.createElement('canvas');
+  lienzo.width = W; lienzo.height = H;
+  const ctx = lienzo.getContext('2d', { willReadFrequently: true });
+  const buffer = new Float32Array(W * H * 3);
+  let streamFuente = null, timerMuestreo = null;
+
+  function promedio(px, n) {
+    let r = 0, g = 0, b = 0;
+    for (let i = 0; i < n; i++) { r += px[i * 3]; g += px[i * 3 + 1]; b += px[i * 3 + 2]; }
+    return n ? [r / n, g / n, b / n] : [0, 0, 0];
+  }
+
+  // k-means: agrupa los píxeles y devuelve el grupo más grande
+  function predominante(px, n, k = 5) {
+    if (n < k) return promedio(px, n);
+    const c = [];
+    for (let j = 0; j < k; j++) {
+      const i = Math.floor((j + 0.5) * n / k);
+      c.push([px[i * 3], px[i * 3 + 1], px[i * 3 + 2]]);
+    }
+    const et = new Int32Array(n);
+    for (let it = 0; it < 8; it++) {
+      for (let i = 0; i < n; i++) {
+        const r = px[i * 3], g = px[i * 3 + 1], b = px[i * 3 + 2];
+        let mejor = 0, md = Infinity;
+        for (let j = 0; j < k; j++) {
+          const dr = r - c[j][0], dg = g - c[j][1], db = b - c[j][2];
+          const d = dr * dr + dg * dg + db * db;
+          if (d < md) { md = d; mejor = j; }
+        }
+        et[i] = mejor;
+      }
+      const suma = Array.from({ length: k }, () => [0, 0, 0, 0]);
+      for (let i = 0; i < n; i++) {
+        const s = suma[et[i]];
+        s[0] += px[i * 3]; s[1] += px[i * 3 + 1]; s[2] += px[i * 3 + 2]; s[3]++;
+      }
+      for (let j = 0; j < k; j++) {
+        if (suma[j][3]) c[j] = [suma[j][0] / suma[j][3], suma[j][1] / suma[j][3], suma[j][2] / suma[j][3]];
+      }
+    }
+    const cuentas = new Array(k).fill(0);
+    for (let i = 0; i < n; i++) cuentas[et[i]]++;
+
+    let mejor = null, mejorPuntaje = 0;
+    for (let j = 0; j < k; j++) {
+      const mx = Math.max(...c[j]), mn = Math.min(...c[j]);
+      if (!cuentas[j] || mx < 30) continue;               // casi negro: no cuenta
+      const puntaje = cuentas[j] * (0.75 + 0.25 * (mx - mn) / mx);
+      if (puntaje > mejorPuntaje) { mejor = c[j]; mejorPuntaje = puntaje; }
+    }
+    return mejor || [0, 0, 0];
+  }
+
+  function muestrear() {
+    if (!video.videoWidth) return;
+    ctx.drawImage(video, 0, 0, W, H);
+    const data = ctx.getImageData(0, 0, W, H).data;
+    const alg = $('algoritmo').value;
+    let n = 0;
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        if (alg === 'bordes' && !(y < 5 || y >= H - 5 || x < 8 || x >= W - 8)) continue;
+        const i = (y * W + x) * 4;
+        buffer[n * 3] = data[i]; buffer[n * 3 + 1] = data[i + 1]; buffer[n * 3 + 2] = data[i + 2];
+        n++;
+      }
+    }
+    est.colorFuente = alg === 'promedio' ? promedio(buffer, n) : predominante(buffer, n);
+  }
+
+  function detenerFuente() {
+    clearInterval(timerMuestreo);
+    timerMuestreo = null;
+    if (streamFuente) streamFuente.getTracks().forEach(t => t.stop());
+    streamFuente = null;
+    video.srcObject = null;
+    est.fuente = 'ninguna';
+    est.colorFuente = null;
+  }
+
+  async function cambiarFuente() {
+    const tipo = $('fuente').value;
+    detenerFuente();
+    if (tipo !== 'ninguna') {
+      try {
+        const stream = tipo === 'camara'
+          ? await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
+          : await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+        streamFuente = stream;
+        video.srcObject = stream;
+        await video.play();
+        est.fuente = tipo;
+        video.classList.toggle('oculto', tipo !== 'camara'); // vista previa solo con la cámara
+        timerMuestreo = setInterval(muestrear, 150);
+        stream.getVideoTracks()[0].addEventListener('ended', () => {
+          $('fuente').value = 'ninguna';
+          cambiarFuente();
+        });
+      } catch (e) {
+        $('fuente').value = 'ninguna';
+        detenerFuente();
+        mensaje(e.name === 'NotAllowedError' ? 'Permiso denegado.' : 'No se pudo iniciar: ' + e.message, 'err');
+      }
+    }
+    video.classList.toggle('oculto', est.fuente !== 'camara');
+    revisarMotor();
+  }
+
+  // ---------- Audio (micrófono) ----------
+  let ctxAudio = null, analizador = null, streamAudio = null, timerAudio = null, tbuf, fbuf;
+  const aud = { pico: 0.01, picos: [1e-4, 1e-4, 1e-4], nivel: 0, suaves: [0, 0, 0], t: 0 };
+  const RANGOS = [[30, 250], [250, 2000], [2000, 12000]]; // graves, medios, agudos
+
+  async function iniciarAudio() {
+    streamAudio = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+    });
+    ctxAudio = new (window.AudioContext || window.webkitAudioContext)();
+    await ctxAudio.resume();
+    const origen = ctxAudio.createMediaStreamSource(streamAudio);
+    analizador = ctxAudio.createAnalyser();
+    analizador.fftSize = 2048;
+    analizador.smoothingTimeConstant = 0;
+    origen.connect(analizador);
+    tbuf = new Float32Array(analizador.fftSize);
+    fbuf = new Float32Array(analizador.frequencyBinCount);
+    aud.t = performance.now();
+    timerAudio = setInterval(tickAudio, 30);
+  }
+
+  function detenerAudio() {
+    clearInterval(timerAudio);
+    timerAudio = null;
+    if (streamAudio) streamAudio.getTracks().forEach(t => t.stop());
+    streamAudio = null;
+    if (ctxAudio) ctxAudio.close().catch(() => {});
+    ctxAudio = null;
+    est.audio = false;
+    est.nivel = 0;
+  }
+
+  function tickAudio() {
+    const ahora = performance.now();
+    const dt = Math.min(0.2, (ahora - aud.t) / 1000);
+    aud.t = ahora;
+    const dec = base => Math.pow(base, dt / 0.0232); // mismo ritmo sin importar la frecuencia del timer
+
+    analizador.getFloatTimeDomainData(tbuf);
+    let s = 0;
+    for (let i = 0; i < tbuf.length; i++) s += tbuf[i] * tbuf[i];
+    const vol = Math.sqrt(s / tbuf.length);
+
+    analizador.getFloatFrequencyData(fbuf);
+    const hz = ctxAudio.sampleRate / analizador.fftSize;
+    const valores = RANGOS.map(([a, b]) => {
+      let suma = 0, cnt = 0;
+      const fin = Math.min(fbuf.length - 1, Math.floor(b / hz));
+      for (let i = Math.ceil(a / hz); i <= fin; i++) { suma += Math.pow(10, fbuf[i] / 20); cnt++; }
+      return cnt ? suma / cnt : 0;
+    });
+
+    aud.pico = Math.max(vol, aud.pico * dec(0.995), 0.01);
+    for (let i = 0; i < 3; i++) aud.picos[i] = Math.max(valores[i], aud.picos[i] * dec(0.995), 1e-4);
+
+    const obj = vol > 0.004 ? Math.min(1, vol / aud.pico) : 0;
+    const k = dec(0.8);
+    aud.nivel = obj > aud.nivel ? obj : aud.nivel * k + obj * (1 - k);
+    for (let i = 0; i < 3; i++) {
+      const rel = Math.min(1, valores[i] / aud.picos[i]);
+      aud.suaves[i] = rel > aud.suaves[i] ? rel : aud.suaves[i] * k + rel * (1 - k);
+    }
+    est.nivel = aud.nivel;
+    est.bandas = aud.suaves.slice();
+  }
+
+  async function cambiarAudio() {
+    detenerAudio();
+    if ($('chkAudio').checked) {
+      try {
+        await iniciarAudio();
+        est.audio = true;
+      } catch (e) {
+        $('chkAudio').checked = false;
+        detenerAudio();
+        mensaje(e.name === 'NotAllowedError' ? 'Permiso de micrófono denegado.' : 'Error de audio: ' + e.message, 'err');
+      }
+    }
+    revisarMotor();
+  }
+
+  // ---------- Motor: combina fuente de color y sonido ----------
+  let timerMotor = null, suave = null, ultimo = null, colorAudio = [255, 255, 255], wakeLock = null;
+
+  const autoActivo = () => est.fuente !== 'ninguna' || est.audio;
+
+  async function pedirWakeLock() {
+    try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (_) {}
+  }
+  function soltarWakeLock() {
+    try { if (wakeLock) wakeLock.release(); } catch (_) {}
+    wakeLock = null;
+  }
+
+  function revisarMotor() {
+    const auto = autoActivo();
+    if (auto && !timerMotor) {
+      timerMotor = setInterval(tick, 80);
+      pedirWakeLock();
+    }
+    if (!auto && timerMotor) {
+      clearInterval(timerMotor);
+      timerMotor = null;
+      suave = null; ultimo = null;
+      soltarWakeLock();
+      alCambiarManual();
+    }
+    $('manual').disabled = auto;
+  }
+
+  function tick() {
+    if (!conectado || !autoActivo()) return;
+    const a = ajustes();
+    let objetivo, factor;
+    if (est.fuente !== 'ninguna') {
+      if (!est.colorFuente) return;
+      objetivo = est.colorFuente;
+      factor = 0.5;
+    } else {
+      const m = Math.max(...est.bandas);
+      if (m > 0.05) colorAudio = est.bandas.map(x => 255 * x / m);
+      objetivo = colorAudio;
+      factor = 0.35;
+    }
+    objetivo = realzar(objetivo, a.intens);
+    suave = suave ? suave.map((v, i) => v + (objetivo[i] - v) * factor) : objetivo;
+
+    let brillo = a.brillo;
+    if (est.audio) brillo = a.brillo * (0.05 + 0.95 * Math.pow(est.nivel, 1.5 / a.sens));
+
+    const vista = escalar(suave, brillo);
+    pintarVista(vista);
+    if (!ultimo || vista.reduce((s, v, i) => s + Math.abs(v - ultimo[i]), 0) >= 4) {
+      asegurarEncendida();
+      enviar(paquete(suave, brillo, a.orden, a.gan), 'color');
+      ultimo = vista;
+    }
+  }
+
+  // ---------- Interfaz ----------
+  function actualizarSalidas() {
+    document.querySelectorAll('input[type=range]').forEach(inp => {
+      const div = Number(inp.dataset.div || 1);
+      const out = inp.parentElement.querySelector('output');
+      if (out) out.textContent = div > 1 ? (inp.value / div).toFixed(1) : inp.value;
+    });
+  }
+
+  const GUARDAR = ['brillo', 'intens', 'sens', 'gr', 'gg', 'gb', 'velocidad', 'orden', 'algoritmo'];
+  function cargarAjustes() {
+    try {
+      const o = JSON.parse(localStorage.getItem('tira-led') || '{}');
+      for (const id of GUARDAR) if (o[id] !== undefined) $(id).value = o[id];
+    } catch (_) {}
+  }
+  function guardarAjustes() {
+    try {
+      const o = {};
+      for (const id of GUARDAR) o[id] = $(id).value;
+      localStorage.setItem('tira-led', JSON.stringify(o));
+    } catch (_) {}
+  }
+
+  function construir() {
+    // Colores rápidos
+    const cont = $('presets');
+    for (const [nombre, rgb] of COLORES) {
+      const b = document.createElement('button');
+      b.textContent = nombre;
+      b.style.background = `rgb(${rgb.join(',')})`;
+      if (nombre === 'Blanco' || nombre === 'Amarillo') { b.style.color = '#111'; b.style.textShadow = 'none'; }
+      b.addEventListener('click', () => ponerColor(rgb));
+      cont.appendChild(b);
+    }
+    // Efectos
+    const sel = $('efecto');
+    sel.add(new Option('Color fijo', 'fijo'));
+    for (let m = 0x25; m <= 0x38; m++) sel.add(new Option('Efecto ' + (m - 0x24), String(m)));
+
+    // Pantalla solo donde existe (PC); en Android Chrome no está disponible
+    if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+      $('fuente').add(new Option('Pantalla', 'pantalla'));
+    }
+  }
+
+  function enlazar() {
+    $('btnConectar').addEventListener('click', () => (conectado ? desconectar() : conectar()));
+    $('btnTodos').addEventListener('click', () => {
+      mostrarTodos = true;
+      dispositivo = null;
+      mensaje('Ahora se mostrarán todos los dispositivos. Pulsa "Conectar a la tira".');
+    });
+    $('btnOn').addEventListener('click', () => {
+      est.encendida = true;
+      enviar(ENCENDER, 'power');
+      enviarManual();
+    });
+    $('btnOff').addEventListener('click', () => {
+      $('fuente').value = 'ninguna';
+      $('chkAudio').checked = false;
+      detenerFuente(); detenerAudio(); revisarMotor();
+      est.encendida = false;
+      setTimeout(() => enviar(APAGAR, 'power'), 150);
+    });
+    $('btnBlanco').addEventListener('click', () => ponerColor([255, 255, 255]));
+
+    for (const id of ['r', 'g', 'b']) $(id).addEventListener('input', () => {
+      $('efecto').value = 'fijo';
+      $('selector').value = '#' + ['r', 'g', 'b'].map(c => num(c).toString(16).padStart(2, '0')).join('');
+      alCambiarManual();
+    });
+    for (const id of ['brillo', 'gr', 'gg', 'gb']) $(id).addEventListener('input', alCambiarManual);
+    $('orden').addEventListener('change', alCambiarManual);
+    $('velocidad').addEventListener('input', () => { if ($('efecto').value !== 'fijo') aplicarEfecto(); });
+    $('efecto').addEventListener('change', aplicarEfecto);
+    $('selector').addEventListener('input', e => {
+      const h = e.target.value;
+      ponerColor([1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)));
+    });
+    $('fuente').addEventListener('change', cambiarFuente);
+    $('chkAudio').addEventListener('change', cambiarAudio);
+
+    document.querySelectorAll('input[type=range], select').forEach(el => {
+      el.addEventListener('input', () => { actualizarSalidas(); guardarAjustes(); });
+      el.addEventListener('change', guardarAjustes);
+    });
+  }
+
+  construir();
+  cargarAjustes();
+  actualizarSalidas();
+  enlazar();
+  pintarVista([255, 255, 255]);
+  if (!navigator.bluetooth) {
+    mensaje('Este navegador no soporta Bluetooth web. Abre esta página en Chrome o Edge.', 'err');
+  }
+})();
+</script>
+</body>
+</html>
