@@ -55,6 +55,26 @@
   video.oculto { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; margin: 0; }
   .check { display: flex; align-items: center; gap: 10px; min-height: 48px; }
   .check input { width: 22px; height: 22px; accent-color: var(--ac); }
+  [hidden] { display: none !important; }
+  .rueda-caja { position: relative; width: min(100%, 300px); aspect-ratio: 1; margin: 0 auto 8px; touch-action: none; }
+  .rueda-caja canvas { display: block; width: 100%; height: 100%; border-radius: 50%; cursor: crosshair; }
+  .rueda-punto {
+    position: absolute; left: 50%; top: 50%; width: 24px; height: 24px; margin: -12px 0 0 -12px;
+    border: 3px solid #fff; border-radius: 50%; pointer-events: none;
+    box-shadow: 0 0 0 1.5px #000, inset 0 0 0 1.5px #000;
+  }
+  .canal { display: grid; grid-template-columns: 3.4rem 44px 1fr 44px 2.4rem; gap: 6px; align-items: center; min-height: 48px; }
+  .canal span { color: var(--mut); font-size: .92rem; }
+  .canal output { text-align: right; font-variant-numeric: tabular-nums; }
+  .mini { min-height: 40px; min-width: 44px; padding: 0; font-weight: 700; }
+  .cal-cab { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+  .cal-cab .vista { flex: 0 0 96px; margin: 0; }
+  .cal-cab strong { display: block; }
+  .ancla-grupo { margin: 12px 0 4px; font-size: .85rem; color: var(--mut); }
+  .anclas { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+  .ancla { min-height: 0; height: 44px; padding: 0; border: 2px solid transparent; position: relative; color: #fff; font-weight: 700; text-shadow: 0 0 3px #000; }
+  .ancla.ok::after { content: "✓"; }
+  .ancla.sel { border-color: var(--tx); outline: 2px solid var(--ac); outline-offset: 1px; }
   a { color: var(--ac); }
   .enlace { background: none; border: 0; color: var(--ac); text-decoration: underline; min-height: 40px; padding: 0; }
 </style>
@@ -84,11 +104,49 @@
       <section class="card">
         <h2>Color</h2>
         <div id="vista" class="vista"></div>
+        <div class="rueda-caja"><canvas id="rueda" width="300" height="300" aria-label="Rueda de colores"></canvas><div id="ruedaPunto" class="rueda-punto"></div></div>
+        <label class="fila"><span>Claridad</span><input type="range" id="val" min="0" max="100" value="100"><output></output></label>
         <label class="fila"><span>Rojo</span><input type="range" id="r" min="0" max="255" value="255"><output></output></label>
         <label class="fila"><span>Verde</span><input type="range" id="g" min="0" max="255" value="255"><output></output></label>
         <label class="fila"><span>Azul</span><input type="range" id="b" min="0" max="255" value="255"><output></output></label>
         <div id="presets" class="presets"></div>
-        <label class="campo"><span>Elegir color</span><input type="color" id="selector" value="#ffffff" style="width:64px;height:44px;border:0;background:none"></label>
+      </section>
+
+      <section class="card">
+        <h2>Calibración de colores</h2>
+        <label class="check"><input type="checkbox" id="chkCal" checked> Usar mi calibración</label>
+        <button id="btnCalModo" type="button" style="width:100%">Calibrar colores</button>
+        <p id="calProgreso" class="nota"></p>
+        <div id="calPanel" hidden>
+          <p class="nota">Elige un color y mueve R, G y B hasta que la tira se vea igual que el cuadro de la pantalla. Pulsa Confirmar para guardarlo. Los que no confirmes se calculan solos a partir de los que sí.</p>
+          <div id="calEditor" hidden>
+            <div class="cal-cab">
+              <div id="calObjetivo" class="vista"></div>
+              <div><strong id="calNombre"></strong><p id="calEstado" class="nota"></p></div>
+            </div>
+            <div class="canal"><span>Rojo</span><button type="button" class="mini" data-c="cr" data-d="-1">−</button><input type="range" id="cr" min="0" max="255" value="255"><button type="button" class="mini" data-c="cr" data-d="1">+</button><output></output></div>
+            <div class="canal"><span>Verde</span><button type="button" class="mini" data-c="cg" data-d="-1">−</button><input type="range" id="cg" min="0" max="255" value="255"><button type="button" class="mini" data-c="cg" data-d="1">+</button><output></output></div>
+            <div class="canal"><span>Azul</span><button type="button" class="mini" data-c="cb" data-d="-1">−</button><input type="range" id="cb" min="0" max="255" value="255"><button type="button" class="mini" data-c="cb" data-d="1">+</button><output></output></div>
+            <div class="fila-botones" style="margin-top:8px">
+              <button id="btnCalAnt" type="button" aria-label="Color anterior">◀</button>
+              <button id="btnCalOk" type="button" class="primario" style="flex:3">Confirmar</button>
+              <button id="btnCalSig" type="button" aria-label="Color siguiente">▶</button>
+            </div>
+            <div class="fila-botones" style="margin-top:8px">
+              <button id="btnCalReset" type="button">Restablecer</button>
+            </div>
+          </div>
+          <p id="calMsg" class="nota" role="status" aria-live="polite"></p>
+          <div id="calGrupos"></div>
+          <div class="fila-botones" style="margin-top:12px">
+            <button id="btnCalAnadir" type="button">Añadir color del panel</button>
+          </div>
+          <div class="fila-botones" style="margin-top:8px">
+            <button id="btnCalExp" type="button">Exportar</button>
+            <button id="btnCalImp" type="button">Importar</button>
+            <button id="btnCalBorrar" type="button">Borrar todo</button>
+          </div>
+        </div>
       </section>
 
       <section class="card">
@@ -134,7 +192,7 @@
         </select>
       </label>
       <button id="btnBlanco" style="width:100%;margin-top:6px">Probar blanco</button>
-      <p class="nota">Para calibrar: pulsa "Probar blanco" y baja el canal que se vea de más hasta que el blanco se vea blanco. Los ajustes se guardan en este teléfono.</p>
+      <p class="nota">El balance corrige todos los colores a la vez. Para ajustar colores uno por uno usa "Calibración de colores". Los ajustes se guardan en este teléfono.</p>
     </section>
 
   </fieldset>
@@ -156,10 +214,11 @@
   const APAGAR = [0xCC, 0x24, 0x33];
   const CONSULTA = [0xEF, 0x01, 0x77];
 
+  // Colores objetivo: lo que debería VERSE. La calibración decide qué valores se envían a la tira.
   const COLORES = [
-    ['Rojo', [255, 0, 0]], ['Naranja', [255, 18, 0], [255, 110, 0]], ['Amarillo', [255, 220, 0]],
+    ['Rojo', [255, 0, 0]], ['Naranja', [255, 128, 0]], ['Amarillo', [255, 255, 0]],
     ['Verde', [0, 255, 0]], ['Cian', [0, 255, 255]], ['Azul', [0, 0, 255]],
-    ['Morado', [150, 0, 255]], ['Rosa', [255, 0, 130]], ['Blanco', [255, 255, 255]],
+    ['Morado', [128, 0, 255]], ['Rosa', [255, 0, 128]], ['Blanco', [255, 255, 255]],
   ];
 
   // ---------- Estado ----------
@@ -194,8 +253,69 @@
     const d = { R: rgb[0], G: rgb[1], B: rgb[2] };
     return [...orden].map(c => d[c]);
   }
-  function paquete(rgb, brillo, orden, gan) {
-    const corregido = rgb.map((v, i) => v * gan[i]);
+  // ---------- Utilidades de color ----------
+  const aHex = rgb => '#' + rgb.map(v => clamp(Math.round(v), 0, 255).toString(16).padStart(2, '0')).join('');
+  const deHex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+  function hsv2rgb(h, s, v) {
+    const c = v * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = v - c;
+    let r, g, b;
+    if (h < 60) [r, g, b] = [c, x, 0];
+    else if (h < 120) [r, g, b] = [x, c, 0];
+    else if (h < 180) [r, g, b] = [0, c, x];
+    else if (h < 240) [r, g, b] = [0, x, c];
+    else if (h < 300) [r, g, b] = [x, 0, c];
+    else [r, g, b] = [c, 0, x];
+    return [r + m, g + m, b + m].map(t => Math.round(t * 255));
+  }
+  function rgb2hsv(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+    let h = 0;
+    if (d) {
+      if (mx === r) h = ((g - b) / d) % 6;
+      else if (mx === g) h = (b - r) / d + 2;
+      else h = (r - g) / d + 4;
+      h = (h * 60 + 360) % 360;
+    }
+    return [h, mx ? d / mx : 0, mx];
+  }
+  // Lleva el color a brillo máximo (el canal mayor = 255): así la calibración depende solo del tono y la saturación
+  const normalizar = rgb => {
+    const m = Math.max(...rgb);
+    return m > 0 ? rgb.map(v => Math.round(v * 255 / m)) : [0, 0, 0];
+  };
+
+  // ---------- Calibración ----------
+  // cal: color objetivo (hex, brillo máximo) -> valores RGB que hay que enviar para que se vea así
+  const CAL_KEY = 'tira-led-cal';
+  let cal = {}, custom = [], calActiva = true, puntos = [];
+
+  function recalcPuntos() {
+    puntos = Object.entries(cal).map(([k, c]) => ({ t: deHex(k), c }));
+  }
+
+  // Interpolación por distancia inversa (Shepard): cada color calibrado "tira" de sus vecinos.
+  // Exacta en los colores confirmados; entre ellos mezcla las correcciones según la cercanía.
+  function interpolar(rgb) {
+    const m = Math.max(...rgb);
+    if (m <= 0 || !puntos.length) return rgb.slice();
+    const n = rgb.map(v => v * 255 / m);
+    let sw = 0;
+    const d = [0, 0, 0];
+    for (const p of puntos) {
+      const d2 = (n[0] - p.t[0]) ** 2 + (n[1] - p.t[1]) ** 2 + (n[2] - p.t[2]) ** 2;
+      if (d2 < 1) return p.c.map(v => v * m / 255);
+      const w = 1 / d2;
+      sw += w;
+      for (let i = 0; i < 3; i++) d[i] += w * (p.c[i] - p.t[i]);
+    }
+    return n.map((v, i) => clamp(v + d[i] / sw, 0, 255) * m / 255);
+  }
+  const calibrar = rgb => (calActiva ? interpolar(rgb) : rgb);
+
+  function paquete(rgb, brillo, orden, gan, sinCal) {
+    const base = sinCal ? rgb : calibrar(rgb);
+    const corregido = base.map((v, i) => v * gan[i]);
     const [r, g, b] = reordenar(escalar(corregido, brillo), orden);
     return [0x56, r, g, b, 0x00, 0xF0, 0xAA];
   }
@@ -320,23 +440,277 @@
   function enviarManual() {
     if (!conectado || autoActivo() || $('efecto').value !== 'fijo') return;
     const a = ajustes();
-    const rgb = [num('r'), num('g'), num('b')];
     asegurarEncendida();
-    enviar(paquete(rgb, a.brillo, a.orden, a.gan), 'color');
+    if (calSel >= 0) {
+      // Calibrando: se envían tal cual los valores de los controles R, G, B de calibración
+      enviar(paquete([num('cr'), num('cg'), num('cb')], a.brillo, a.orden, a.gan, true), 'color');
+    } else {
+      enviar(paquete([num('r'), num('g'), num('b')], a.brillo, a.orden, a.gan), 'color');
+    }
   }
 
   function alCambiarManual() {
     if (autoActivo()) return;
-    pintarVista(escalar([num('r'), num('g'), num('b')], num('brillo')));
+    if (calSel < 0) pintarVista(escalar([num('r'), num('g'), num('b')], num('brillo')));
     enviarManual();
   }
 
-  function ponerColor(rgb) {
+  function ponerColor(rgb, desdeRueda) {
+    salirCalSel();
     $('efecto').value = 'fijo';
     $('r').value = rgb[0]; $('g').value = rgb[1]; $('b').value = rgb[2];
+    if (!desdeRueda) sincronizarRueda(rgb);
     actualizarSalidas();
-    $('selector').value = '#' + rgb.map(v => v.toString(16).padStart(2, '0')).join('');
     alCambiarManual();
+  }
+
+  // ---------- Rueda de color ----------
+  const hsv = { h: 0, s: 0, v: 1 };
+  const rueda = $('rueda');
+
+  function dibujarRueda() {
+    const ctxR = rueda.getContext('2d');
+    const T = rueda.width, R = T / 2;
+    const img = ctxR.createImageData(T, T);
+    for (let y = 0; y < T; y++) {
+      for (let x = 0; x < T; x++) {
+        const dx = x + 0.5 - R, dy = y + 0.5 - R, d = Math.hypot(dx, dy);
+        if (d > R) continue;
+        const h = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
+        const [r, g, b] = hsv2rgb(h, d / R, 1);
+        const i = (y * T + x) * 4;
+        img.data[i] = r; img.data[i + 1] = g; img.data[i + 2] = b; img.data[i + 3] = 255;
+      }
+    }
+    ctxR.putImageData(img, 0, 0);
+  }
+
+  function colocarPunto() {
+    const a = hsv.h * Math.PI / 180;
+    $('ruedaPunto').style.left = (50 + Math.cos(a) * hsv.s * 50) + '%';
+    $('ruedaPunto').style.top = (50 + Math.sin(a) * hsv.s * 50) + '%';
+  }
+
+  // Actualiza rueda y "Claridad" a partir de un RGB (sin perder el tono si el color es gris o negro)
+  function sincronizarRueda(rgb) {
+    const [h, s, v] = rgb2hsv(rgb[0], rgb[1], rgb[2]);
+    if (v > 0) { hsv.s = s; hsv.v = v; if (s > 0.001) hsv.h = h; }
+    else hsv.v = 0;
+    $('val').value = Math.round(hsv.v * 100);
+    colocarPunto();
+  }
+
+  function aplicarHSV() {
+    colocarPunto();
+    ponerColor(hsv2rgb(hsv.h, hsv.s, hsv.v), true);
+  }
+
+  function desdePuntero(ev) {
+    const r = rueda.getBoundingClientRect();
+    const x = (ev.clientX - r.left) / r.width * 2 - 1, y = (ev.clientY - r.top) / r.height * 2 - 1;
+    hsv.h = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+    hsv.s = Math.min(1, Math.hypot(x, y));
+    if (hsv.v === 0) { hsv.v = 1; $('val').value = 100; actualizarSalidas(); }
+    aplicarHSV();
+  }
+
+  // ---------- Calibración: colores a calibrar e interfaz ----------
+  let anclas = [], calSel = -1;
+  const NOMBRES_TONO = ['Rojo', 'Rojo anaranjado', 'Naranja', 'Ámbar', 'Amarillo', 'Amarillo verdoso', 'Lima', 'Verde claro',
+    'Verde', 'Verde menta', 'Verde primavera', 'Turquesa', 'Cian', 'Celeste', 'Azul cielo', 'Azul medio',
+    'Azul', 'Azul violeta', 'Morado', 'Violeta', 'Magenta', 'Fucsia', 'Rosa', 'Rosa rojizo'];
+
+  function construirAnclas() {
+    anclas = [];
+    const ver = new Set();
+    const poner = (grupo, nombre, t) => {
+      const key = aHex(t);
+      if (ver.has(key)) return;
+      ver.add(key);
+      anclas.push({ grupo, nombre, t, key });
+    };
+    for (let i = 0; i < 24; i++) poner('Colores puros', NOMBRES_TONO[i], hsv2rgb(i * 15, 1, 1));
+    poner('Blanco', 'Blanco', [255, 255, 255]);
+    for (let i = 0; i < 12; i++) poner('Pasteles', 'Pastel · ' + NOMBRES_TONO[i * 2].toLowerCase(), hsv2rgb(i * 30, 0.5, 1));
+    custom.forEach(k => poner('Mis colores', 'Personalizado ' + k, deHex(k)));
+  }
+
+  function cargarCal() {
+    try {
+      const o = JSON.parse(localStorage.getItem(CAL_KEY) || '{}');
+      cal = {};
+      for (const [k, c] of Object.entries(o.cal || {})) {
+        if (/^#[0-9a-f]{6}$/.test(k) && Array.isArray(c) && c.length === 3) cal[k] = c.map(v => clamp(Math.round(Number(v)) || 0, 0, 255));
+      }
+      custom = (o.custom || []).filter(k => /^#[0-9a-f]{6}$/.test(k));
+      calActiva = o.activa !== false;
+    } catch (_) {}
+    recalcPuntos();
+    construirAnclas();
+    $('chkCal').checked = calActiva;
+  }
+  function guardarCal() {
+    try { localStorage.setItem(CAL_KEY, JSON.stringify({ cal, custom, activa: calActiva })); } catch (_) {}
+  }
+
+  const calMensaje = t => { $('calMsg').textContent = t; };
+
+  function pintarProgreso() {
+    const n = anclas.filter(a => cal[a.key]).length;
+    $('calProgreso').textContent = `${n} de ${anclas.length} colores calibrados. El resto se calcula por interpolación.`;
+  }
+
+  function pintarAnclas() {
+    const cont = $('calGrupos');
+    cont.textContent = '';
+    let grupo = null, rejilla = null;
+    anclas.forEach((a, i) => {
+      if (a.grupo !== grupo) {
+        grupo = a.grupo;
+        const t = document.createElement('p');
+        t.className = 'ancla-grupo';
+        t.textContent = grupo;
+        rejilla = document.createElement('div');
+        rejilla.className = 'anclas';
+        cont.append(t, rejilla);
+      }
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'ancla' + (cal[a.key] ? ' ok' : '') + (i === calSel ? ' sel' : '');
+      b.style.background = a.key;
+      b.title = a.nombre;
+      b.setAttribute('aria-label', a.nombre + (cal[a.key] ? ' (calibrado)' : ''));
+      b.addEventListener('click', () => { selCal(i); $('calEditor').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); });
+      rejilla.appendChild(b);
+    });
+    pintarProgreso();
+  }
+
+  function pintarEditor() {
+    $('calEditor').hidden = calSel < 0;
+    if (calSel < 0) return;
+    const a = anclas[calSel];
+    $('calObjetivo').style.background = a.key;
+    $('calNombre').textContent = a.nombre;
+    $('calEstado').textContent = cal[a.key] ? 'Calibrado y guardado.' : 'Sin confirmar: valor estimado con los demás.';
+    $('btnCalReset').textContent = custom.includes(a.key) ? 'Quitar este color' : 'Restablecer';
+  }
+
+  function selCal(i) {
+    if (i < 0 || i >= anclas.length) return;
+    calSel = i;
+    const a = anclas[i];
+    $('efecto').value = 'fijo';
+    const c = cal[a.key] || interpolar(a.t).map(v => clamp(Math.round(v), 0, 255));
+    $('cr').value = c[0]; $('cg').value = c[1]; $('cb').value = c[2];
+    actualizarSalidas();
+    pintarAnclas();
+    pintarEditor();
+    enviarManual();
+  }
+
+  function salirCalSel() {
+    if (calSel < 0) return;
+    calSel = -1;
+    pintarAnclas();
+    pintarEditor();
+  }
+
+  function siguienteSinCal(desde) {
+    for (let k = 1; k <= anclas.length; k++) {
+      const i = (desde + k) % anclas.length;
+      if (!cal[anclas[i].key]) return i;
+    }
+    return -1;
+  }
+
+  function calConfirmar() {
+    if (calSel < 0) return;
+    const a = anclas[calSel];
+    cal[a.key] = [num('cr'), num('cg'), num('cb')];
+    recalcPuntos();
+    guardarCal();
+    const sig = siguienteSinCal(calSel);
+    if (sig >= 0) { calMensaje(`Guardado: ${a.nombre}.`); selCal(sig); }
+    else { calMensaje('Guardado. ¡Todos los colores están calibrados!'); pintarAnclas(); pintarEditor(); }
+  }
+
+  function calReset() {
+    if (calSel < 0) return;
+    const a = anclas[calSel];
+    delete cal[a.key];
+    if (custom.includes(a.key)) {
+      custom = custom.filter(k => k !== a.key);
+      construirAnclas();
+      recalcPuntos(); guardarCal();
+      calSel = -1;
+      pintarAnclas(); pintarEditor();
+      alCambiarManual();
+      calMensaje('Color quitado.');
+      return;
+    }
+    recalcPuntos(); guardarCal();
+    selCal(calSel);
+    calMensaje(`${a.nombre} restablecido.`);
+  }
+
+  function calAnadir() {
+    const t = normalizar([num('r'), num('g'), num('b')]);
+    if (!t[0] && !t[1] && !t[2]) { calMensaje('Elige primero un color en la rueda.'); return; }
+    const key = aHex(t);
+    if (!anclas.some(a => a.key === key)) {
+      custom.push(key);
+      guardarCal();
+      construirAnclas();
+    }
+    selCal(anclas.findIndex(a => a.key === key));
+    calMensaje('Ajusta este color y pulsa Confirmar.');
+  }
+
+  function abrirCal(abrir) {
+    $('calPanel').hidden = !abrir;
+    $('btnCalModo').textContent = abrir ? 'Cerrar calibración' : 'Calibrar colores';
+    if (abrir) {
+      pintarAnclas();
+      const i = anclas.findIndex(a => !cal[a.key]);
+      selCal(i >= 0 ? i : 0);
+    } else {
+      salirCalSel();
+      alCambiarManual();
+    }
+  }
+
+  async function calExportar() {
+    const txt = JSON.stringify({ cal, custom });
+    try { await navigator.clipboard.writeText(txt); calMensaje('Calibración copiada al portapapeles.'); }
+    catch (_) { window.prompt('Copia este texto para guardar tu calibración:', txt); }
+  }
+
+  function calImportar() {
+    const txt = window.prompt('Pega aquí la calibración exportada:');
+    if (!txt) return;
+    try {
+      const o = JSON.parse(txt);
+      const nuevo = {};
+      for (const [k, c] of Object.entries(o.cal || {})) {
+        if (/^#[0-9a-f]{6}$/.test(k) && Array.isArray(c) && c.length === 3) nuevo[k] = c.map(v => clamp(Math.round(Number(v)) || 0, 0, 255));
+      }
+      cal = nuevo;
+      custom = (o.custom || []).filter(k => /^#[0-9a-f]{6}$/.test(k));
+      recalcPuntos(); construirAnclas(); guardarCal();
+      salirCalSel(); pintarAnclas();
+      calMensaje('Calibración importada.');
+      alCambiarManual();
+    } catch (_) { calMensaje('El texto no es una calibración válida.'); }
+  }
+
+  function calBorrar() {
+    if (!window.confirm('¿Borrar toda la calibración guardada?')) return;
+    cal = {}; custom = [];
+    recalcPuntos(); construirAnclas(); guardarCal();
+    salirCalSel(); pintarAnclas();
+    calMensaje('Calibración borrada.');
+    if (!$('calPanel').hidden) selCal(0); else alCambiarManual();
   }
 
   function aplicarEfecto() {
@@ -625,11 +999,10 @@
   function construir() {
     // Colores rápidos
     const cont = $('presets');
-    // El tercer valor (opcional) es el color que se ve en el botón; el segundo es el que se envía a la tira
-    for (const [nombre, rgb, visible] of COLORES) {
+    for (const [nombre, rgb] of COLORES) {
       const b = document.createElement('button');
       b.textContent = nombre;
-      b.style.background = `rgb(${(visible || rgb).join(',')})`;
+      b.style.background = `rgb(${rgb.join(',')})`;
       if (nombre === 'Blanco' || nombre === 'Amarillo') { b.style.color = '#111'; b.style.textShadow = 'none'; }
       b.addEventListener('click', () => ponerColor(rgb));
       cont.appendChild(b);
@@ -667,18 +1040,41 @@
     $('btnBlanco').addEventListener('click', () => ponerColor([255, 255, 255]));
 
     for (const id of ['r', 'g', 'b']) $(id).addEventListener('input', () => {
+      salirCalSel();
       $('efecto').value = 'fijo';
-      $('selector').value = '#' + ['r', 'g', 'b'].map(c => num(c).toString(16).padStart(2, '0')).join('');
+      sincronizarRueda([num('r'), num('g'), num('b')]);
       alCambiarManual();
     });
+
+    // Rueda de color
+    let arrastrando = false;
+    rueda.addEventListener('pointerdown', e => { arrastrando = true; rueda.setPointerCapture(e.pointerId); desdePuntero(e); });
+    rueda.addEventListener('pointermove', e => { if (arrastrando) desdePuntero(e); });
+    for (const ev of ['pointerup', 'pointercancel']) rueda.addEventListener(ev, () => { arrastrando = false; });
+    $('val').addEventListener('input', () => { hsv.v = num('val') / 100; aplicarHSV(); });
+
+    // Calibración
+    $('btnCalModo').addEventListener('click', () => abrirCal($('calPanel').hidden));
+    $('chkCal').addEventListener('change', () => { calActiva = $('chkCal').checked; guardarCal(); alCambiarManual(); });
+    for (const id of ['cr', 'cg', 'cb']) $(id).addEventListener('input', () => { if (calSel >= 0) enviarManual(); });
+    document.querySelectorAll('.mini').forEach(b => b.addEventListener('click', () => {
+      const s = $(b.dataset.c);
+      s.value = clamp(Number(s.value) + Number(b.dataset.d), 0, 255);
+      actualizarSalidas();
+      if (calSel >= 0) enviarManual();
+    }));
+    $('btnCalOk').addEventListener('click', calConfirmar);
+    $('btnCalAnt').addEventListener('click', () => selCal((calSel - 1 + anclas.length) % anclas.length));
+    $('btnCalSig').addEventListener('click', () => selCal((calSel + 1) % anclas.length));
+    $('btnCalReset').addEventListener('click', calReset);
+    $('btnCalAnadir').addEventListener('click', calAnadir);
+    $('btnCalExp').addEventListener('click', calExportar);
+    $('btnCalImp').addEventListener('click', calImportar);
+    $('btnCalBorrar').addEventListener('click', calBorrar);
     for (const id of ['brillo', 'gr', 'gg', 'gb']) $(id).addEventListener('input', alCambiarManual);
     $('orden').addEventListener('change', alCambiarManual);
     $('velocidad').addEventListener('input', () => { if ($('efecto').value !== 'fijo') aplicarEfecto(); });
     $('efecto').addEventListener('change', aplicarEfecto);
-    $('selector').addEventListener('input', e => {
-      const h = e.target.value;
-      ponerColor([1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)));
-    });
     $('fuente').addEventListener('change', cambiarFuente);
     $('chkAudio').addEventListener('change', cambiarAudio);
 
@@ -690,6 +1086,10 @@
 
   construir();
   cargarAjustes();
+  cargarCal();
+  pintarAnclas();
+  dibujarRueda();
+  colocarPunto();
   actualizarSalidas();
   enlazar();
   pintarVista([255, 255, 255]);
