@@ -157,7 +157,7 @@
   const CONSULTA = [0xEF, 0x01, 0x77];
 
   const COLORES = [
-    ['Rojo', [255, 0, 0]], ['Naranja', [255, 100, 0]], ['Amarillo', [255, 220, 0]],
+    ['Rojo', [255, 0, 0]], ['Naranja', [255, 18, 0], [255, 110, 0]], ['Amarillo', [255, 220, 0]],
     ['Verde', [0, 255, 0]], ['Cian', [0, 255, 255]], ['Azul', [0, 0, 255]],
     ['Morado', [150, 0, 255]], ['Rosa', [255, 0, 130]], ['Blanco', [255, 255, 255]],
   ];
@@ -625,10 +625,11 @@
   function construir() {
     // Colores rápidos
     const cont = $('presets');
-    for (const [nombre, rgb] of COLORES) {
+    // El tercer valor (opcional) es el color que se ve en el botón; el segundo es el que se envía a la tira
+    for (const [nombre, rgb, visible] of COLORES) {
       const b = document.createElement('button');
       b.textContent = nombre;
-      b.style.background = `rgb(${rgb.join(',')})`;
+      b.style.background = `rgb(${(visible || rgb).join(',')})`;
       if (nombre === 'Blanco' || nombre === 'Amarillo') { b.style.color = '#111'; b.style.textShadow = 'none'; }
       b.addEventListener('click', () => ponerColor(rgb));
       cont.appendChild(b);
