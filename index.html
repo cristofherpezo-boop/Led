@@ -75,6 +75,7 @@
   .ancla { min-height: 0; height: 44px; padding: 0; border: 2px solid transparent; position: relative; color: #fff; font-weight: 700; text-shadow: 0 0 3px #000; }
   .ancla.ok::after { content: "✓"; }
   .ancla.sel { border-color: var(--tx); outline: 2px solid var(--ac); outline-offset: 1px; }
+  .pomo-reloj { font-size: 2.6rem; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; margin: 4px 0; }
   a { color: var(--ac); }
   .enlace { background: none; border: 0; color: var(--ac); text-decoration: underline; min-height: 40px; padding: 0; }
 </style>
@@ -156,6 +157,23 @@
         <p class="nota">Los efectos corren dentro de la tira. Si la velocidad se siente al revés, usa el otro extremo del control.</p>
       </section>
     </fieldset>
+
+    <section class="card">
+      <h2>Pomodoro</h2>
+      <label class="campo"><span>Método</span>
+        <select id="pomoModo">
+          <option value="25,5,20">Clásico 25 / 5 (largo 20)</option>
+          <option value="50,10,30">Profundo 50 / 10 (largo 30)</option>
+          <option value="15,3,15">Corto 15 / 3 (largo 15)</option>
+        </select>
+      </label>
+      <div id="pomoReloj" class="pomo-reloj">--:--</div>
+      <p id="pomoFase" class="nota" style="text-align:center">Rojo = estudiar · Verde = descansar · Azul = descanso largo</p>
+      <div class="fila-botones" style="margin-top:8px">
+        <button id="btnPomo" class="primario" type="button">Iniciar Pomodoro</button>
+        <button id="btnPomoSaltar" type="button">Saltar fase</button>
+      </div>
+    </section>
 
     <section class="card">
       <h2>Automático</h2>
@@ -411,6 +429,7 @@
   }
 
   function alDesconectar() {
+    pomoDetener();
     conectado = false;
     carEscritura = null;
     carNotif = null;
@@ -972,6 +991,68 @@
     }
   }
 
+  // ---------- Pomodoro ----------
+  const POMO_COLORES = { estudio: [255, 0, 0], descanso: [0, 255, 0], largo: [0, 128, 255] };
+  const POMO_NOMBRES = { estudio: 'Estudio', descanso: 'Descanso', largo: 'Descanso largo' };
+  let pomo = null; // { fase, ciclo, fin, timer }
+
+  function pomoDuraciones() {
+    const [e, d, l] = $('pomoModo').value.split(',').map(Number);
+    return { estudio: e * 60000, descanso: d * 60000, largo: l * 60000 };
+  }
+  function pomoFormato(ms) {
+    const s = Math.max(0, Math.ceil(ms / 1000));
+    return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+  }
+  function pomoPintar() {
+    if (!pomo) {
+      $('pomoReloj').textContent = '--:--';
+      $('pomoFase').textContent = 'Rojo = estudiar · Verde = descansar · Azul = descanso largo';
+      $('btnPomo').textContent = 'Iniciar Pomodoro';
+      return;
+    }
+    $('pomoReloj').textContent = pomoFormato(pomo.fin - Date.now());
+    $('pomoFase').textContent = `${POMO_NOMBRES[pomo.fase]} · ciclo ${pomo.ciclo}`;
+    $('btnPomo').textContent = 'Detener Pomodoro';
+  }
+  function pomoIniciarFase(fase) {
+    pomo.fase = fase;
+    pomo.fin = Date.now() + pomoDuraciones()[fase];
+    // El Pomodoro manda sobre cámara y micrófono
+    if (autoActivo()) {
+      $('fuente').value = 'ninguna';
+      $('chkAudio').checked = false;
+      detenerFuente(); detenerAudio(); revisarMotor();
+    }
+    ponerColor(POMO_COLORES[fase]);
+    if (navigator.vibrate) navigator.vibrate(fase === 'estudio' ? [300] : [200, 100, 200]);
+    pomoPintar();
+  }
+  function pomoSiguiente() {
+    if (!pomo) return;
+    if (pomo.fase === 'estudio') {
+      pomoIniciarFase(pomo.ciclo % 4 === 0 ? 'largo' : 'descanso');
+    } else {
+      pomo.ciclo++;
+      pomoIniciarFase('estudio');
+    }
+  }
+  function pomoDetener() {
+    if (!pomo) return;
+    clearInterval(pomo.timer);
+    pomo = null;
+    soltarWakeLock();
+    pomoPintar();
+  }
+  function pomoIniciar() {
+    pomo = { fase: 'estudio', ciclo: 1, fin: 0, timer: null };
+    pedirWakeLock();
+    pomoIniciarFase('estudio');
+    pomo.timer = setInterval(() => {
+      if (Date.now() >= pomo.fin) pomoSiguiente(); else pomoPintar();
+    }, 500);
+  }
+
   // ---------- Interfaz ----------
   function actualizarSalidas() {
     document.querySelectorAll('input[type=range]').forEach(inp => {
@@ -1031,6 +1112,7 @@
       enviarManual();
     });
     $('btnOff').addEventListener('click', () => {
+      pomoDetener();
       $('fuente').value = 'ninguna';
       $('chkAudio').checked = false;
       detenerFuente(); detenerAudio(); revisarMotor();
@@ -1038,6 +1120,8 @@
       setTimeout(() => enviar(APAGAR, 'power'), 150);
     });
     $('btnBlanco').addEventListener('click', () => ponerColor([255, 255, 255]));
+    $('btnPomo').addEventListener('click', () => (pomo ? pomoDetener() : pomoIniciar()));
+    $('btnPomoSaltar').addEventListener('click', pomoSiguiente);
 
     for (const id of ['r', 'g', 'b']) $(id).addEventListener('input', () => {
       salirCalSel();
